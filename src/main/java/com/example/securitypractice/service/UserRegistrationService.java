@@ -27,6 +27,4 @@ public class UserRegistrationService {
 
         userRepository.save(user);
     }
-
-
 }
