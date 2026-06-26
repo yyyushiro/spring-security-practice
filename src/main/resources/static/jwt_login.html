@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>JWT Test</title></head>
+<body>
+<h1>JWT Login Test</h1>
+
+<div>
+    <input type="text" id="username" placeholder="Username"/>
+    <input type="password" id="password" placeholder="Password"/>
+    <button onclick="login()">Login</button>
+</div>
+
+<div>
+    <button onclick="callHello()">Call /api/hello</button>
+</div>
+
+<pre id="result"></pre>
+
+<script>
+    let accessToken = null; // メモリ上に保持(localStorageは使わない方がXSS耐性は高い)
+
+    async function login() {
+        const res = await fetch("/auth/login", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                username: document.getElementById("username").value,
+                password: document.getElementById("password").value
+            }),
+            credentials: "include" // refresh-token用Cookieを受け取るために必須
+        });
+        const data = await res.json();
+        accessToken = data.accessToken;
+        document.getElementById("result").textContent = "Logged in. accessToken acquired.";
+    }
+
+    async function callHello() {
+        const res = await fetch("/api/hello", {
+            headers: {"Authorization": "Bearer " + accessToken}
+        });
+        document.getElementById("result").textContent = await res.text();
+    }
+</script>
+</body>
+</html>
