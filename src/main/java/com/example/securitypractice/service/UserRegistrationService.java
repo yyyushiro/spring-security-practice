@@ -23,6 +23,7 @@ public class UserRegistrationService {
                 .username(form.getUsername())
                 .password(passwordEncoder.encode(form.getPassword()))
                 .role(form.getRole())
+                .provider("LOCAL")
                 .build();
 
         userRepository.save(user);

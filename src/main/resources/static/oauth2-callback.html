@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>OAuth2 Callback</title>
+</head>
+<body>
+<h1>OAuth2 Login Callback</h1>
+
+<p>Refresh Tokenを使って、Access Tokenを取得しています...</p>
+
+<pre id="result"></pre>
+
+<div>
+    <button onclick="callHello()">Call /api/hello</button>
+</div>
+
+<script>
+    let accessToken = null;
+
+    async function fetchAccessToken() {
+        const res = await fetch("/auth/refresh", {
+            method: "POST",
+            credentials: "include" // OAuth2ログイン成功時に発行されたrefresh-token Cookieを送るために必須
+        });
+
+        if (!res.ok) {
+            document.getElementById("result").textContent = "Failed to refresh token: " + res.status;
+            return;
+        }
+
+        const data = await res.json();
+        accessToken = data.accessToken;
+        document.getElementById("result").textContent = "Access token acquired:\n" + accessToken;
+    }
+
+    async function callHello() {
+        if (!accessToken) {
+            document.getElementById("result").textContent = "No access token yet.";
+            return;
+        }
+        const res = await fetch("/api/hello", {
+            headers: {"Authorization": "Bearer " + accessToken}
+        });
+        document.getElementById("result").textContent = await res.text();
+    }
+
+    // ページロード時に自動でAccess Tokenを取得する
+    fetchAccessToken();
+</script>
+</body>
+</html>

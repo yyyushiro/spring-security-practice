@@ -1,5 +1,7 @@
 package com.example.securitypractice.config;
 
+import com.example.securitypractice.Handler.Oauth2JwtSuccessHandler;
+import com.example.securitypractice.service.CustomOidcUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,6 +34,11 @@ import java.util.LinkedHashMap;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final CustomOidcUserService customOidcUserService;
+    private final Oauth2JwtSuccessHandler oauth2JwtSuccessHandler;
+
+
     /**
      * This chain is for the APIs authenticated by JWT.
      */
@@ -57,12 +64,26 @@ public class SecurityConfig {
         return http.build();
     }
 
+    @Bean
+    @Order(3)
+    public SecurityFilterChain googleOauthChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/oauth2-test/**", "/login/oauth2/**", "/oauth2/**")
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .oidcUserService(customOidcUserService))
+                        .successHandler(oauth2JwtSuccessHandler));
+
+        return http.build();
+    }
+
 
     /**
      * This chain is for form / basic login with Remember me.
      */
     @Bean
-    @Order(3)
+    @Order(4)
     public SecurityFilterChain webFilterChain(HttpSecurity http, RememberMeServices rememberMeServices) throws Exception {
 
         var delegatingAuthenticationEntryPoint = delegatingAuthenticationEntryPoint();
@@ -73,6 +94,10 @@ public class SecurityConfig {
                         .requestMatchers("/register", "/login").permitAll()
                         .anyRequest().authenticated())
 
+                // We set the custom entry point before form or basic sets it.
+                // This is because we can set only a single entry point, so
+                // either of form or basic can set it without delegating entry point
+                // which has two entry points inside it.
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(delegatingAuthenticationEntryPoint))
 
