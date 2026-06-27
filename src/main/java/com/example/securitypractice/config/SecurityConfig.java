@@ -1,11 +1,16 @@
 package com.example.securitypractice.config;
 
 import com.example.securitypractice.Handler.Oauth2JwtSuccessHandler;
+import com.example.securitypractice.api_key.ApiAuthenticationProvider;
+import com.example.securitypractice.api_key.ApiKeyAuthenticationFilter;
 import com.example.securitypractice.service.CustomOidcUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -19,6 +24,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.RememberMeServices;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
@@ -27,6 +33,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import javax.sql.DataSource;
+import java.security.Security;
 import java.util.LinkedHashMap;
 
 
@@ -38,6 +45,21 @@ public class SecurityConfig {
     private final CustomOidcUserService customOidcUserService;
     private final Oauth2JwtSuccessHandler oauth2JwtSuccessHandler;
 
+    @Bean
+    @Order(0)
+    public SecurityFilterChain apiKeyChain(HttpSecurity http, AuthenticationManager apiKeyAuthenticationManager)
+        throws Exception {
+        var filter = new ApiKeyAuthenticationFilter(apiKeyAuthenticationManager);
+
+        http
+                .securityMatcher("/api-key/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
 
     /**
      * This chain is for the APIs authenticated by JWT.
@@ -89,7 +111,7 @@ public class SecurityConfig {
         var delegatingAuthenticationEntryPoint = delegatingAuthenticationEntryPoint();
 
         http
-                .securityMatcher("/hello-form", "/hello-basic", "/login", "/register")
+                .securityMatcher("/hello-form", "/hello-basic", "/login", "/register", "/manage-keys", "/manage-keys/**")
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/register", "/login").permitAll()
                         .anyRequest().authenticated())
@@ -103,7 +125,7 @@ public class SecurityConfig {
 
                 .formLogin(form -> form
                         .loginPage("/login")
-                        .defaultSuccessUrl("/hello", true)
+                        .defaultSuccessUrl("/manage-keys", true)
                         .permitAll()
                 )
 
@@ -123,6 +145,21 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Explicitly registering this provider keeps the global AuthenticationManager
+     * (used by Form Login and JWT login) working with username/password,
+     * even though ApiAuthenticationProvider is also registered as an AuthenticationProvider bean.
+     * Without this, Spring Security's auto-configuration sees exactly one AuthenticationProvider bean
+     * (ApiAuthenticationProvider) and uses only that one, skipping the automatic DaoAuthenticationProvider
+     * setup that would otherwise be built from UserDetailsService + PasswordEncoder.
+     */
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+        return provider;
+    }
+
 
     @Bean
     PersistentTokenRepository persistentTokenRepository(DataSource dataSource) {
@@ -134,6 +171,11 @@ public class SecurityConfig {
     @Bean
     RememberMeServices rememberMeServices(UserDetailsService userDetailsService, PersistentTokenRepository persistentTokenRepository) {
         return new PersistentTokenBasedRememberMeServices("myKey", userDetailsService, persistentTokenRepository);
+    }
+
+    @Bean
+    public AuthenticationManager apiKeyAuthenticationManager(ApiAuthenticationProvider provider) {
+        return new ProviderManager(provider);
     }
 
     /**

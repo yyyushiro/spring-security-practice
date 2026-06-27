@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage API Keys</title>
+</head>
+<body>
+<h1>API Key管理</h1>
+<p th:text="'ログイン中: ' + ${username}"></p>
+
+<form th:action="@{/manage-keys/issue}" method="post">
+    <button type="submit">新しいAPI Keyを発行</button>
+</form>
+
+<div th:if="${issuedKey}">
+    <p>発行されたAPI Key(この画面でしか表示されません):</p>
+    <pre th:text="${issuedKey}"></pre>
+</div>
+</body>
+</html>
